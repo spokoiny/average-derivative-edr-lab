@@ -332,6 +332,7 @@ export default function Home() {
                 <div><span>accuracy</span><strong>{currentCosine.toFixed(4)}</strong></div>
                 <div><span>hₖ</span><strong>{current ? current.h.toFixed(4) : "—"}</strong></div>
                 <div><span>hₖ / ρₖ</span><strong>{activeStep === 1 ? "isotropic" : current ? current.rho === 0 ? "∞" : (current.h / current.rho).toFixed(4) : "—"}</strong></div>
+                <div><span>◇ₖ data fit</span><strong>{current ? current.dataFit >= 10000 ? current.dataFit.toExponential(3) : current.dataFit.toFixed(2) : "—"}</strong></div>
               </div>
               <p className="eigenvalues">Q eigenvalues: <strong>λ₁ {result.eigenvalues[0]?.toFixed(3)}</strong><strong>λ₂ {result.eigenvalues[1]?.toFixed(3)}</strong></p>
               {current && <p className="ao-path"><span>AO accuracy:</span> {current.aoCosines.map((value) => value.toFixed(3)).join(" → ")}</p>}
@@ -354,15 +355,15 @@ export default function Home() {
             </div>
             <PathPlot result={result} activeStep={activeStep} setActiveStep={setActiveStep} />
             <div className="scale-table">
-              <span>stage</span><span>hₖ</span><span>hₖ / ρₖ</span><span>|cos(βₖ,β*)|</span>
-              <b>init</b><em>—</em><em>—</em><strong>{result.initialCosine.toFixed(4)}</strong>
+              <span>stage</span><span>hₖ</span><span>hₖ / ρₖ</span><span>◇ₖ fit</span><span>|cos(βₖ,β*)|</span>
+              <b>init</b><em>—</em><em>—</em><em>—</em><strong>{result.initialCosine.toFixed(4)}</strong>
               {result.path.map((row, i) => (
                 <div className={`table-row ${activeStep === i + 1 ? "selected" : ""}`} key={i}>
-                  <b>k{i}</b><em>{row.h.toFixed(4)}</em><em>{i === 0 ? "—" : row.rho === 0 ? "∞" : (row.h / row.rho).toFixed(4)}</em><strong>{row.cosine.toFixed(4)}</strong>
+                  <b>k{i}</b><em>{row.h.toFixed(4)}</em><em>{i === 0 ? "—" : row.rho === 0 ? "∞" : (row.h / row.rho).toFixed(4)}</em><em>{row.dataFit >= 10000 ? row.dataFit.toExponential(2) : row.dataFit.toFixed(2)}</em><strong>{row.cosine.toFixed(4)}</strong>
                 </div>
               ))}
             </div>
-            <p className="chart-note">At k0 the localization tensor is isotropic, T₀ = h₀⁻¹I, so ρ₀ is not defined.</p>
+            <p className="chart-note">At k0 the localization tensor is isotropic, T₀ = h₀⁻¹I, so ρ₀ is not defined. ◇ₖ is the weighted local residual sum from the fitted slope and local response mean.</p>
           </div>
 
           <div className="chart-card">

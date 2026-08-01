@@ -24,6 +24,7 @@ export type ScatterPoint = { x: number; y: number };
 export type ScaleResult = {
   h: number;
   rho: number;
+  dataFit: number;
   cosine: number;
   beta: number[];
   aoCosines: number[];
@@ -261,6 +262,9 @@ function oneScale(
     : directions(J, P, d, betaIn, rho, rng);
   const Z = Array.from({ length: J }, () => Array(P).fill(0));
   const U = Array.from({ length: J }, () => Array.from({ length: P }, () => Array(d).fill(0)));
+  const localWeights: number[][] = Array(J);
+  const localMeans: number[][] = Array(J);
+  const localResponseMeans: number[] = Array(J);
   for (let j = 0; j < J; j++) {
     const weights = X.map((x) => {
       const delta = x.map((value, k) => value - centers[j][k]);
@@ -269,11 +273,16 @@ function oneScale(
         : (rho * rho * dot(delta, delta) + (1 - rho * rho) * dot(delta, betaIn) ** 2) / (h * h);
       return kernel(q);
     });
+    localWeights[j] = weights;
     const mass = weights.reduce((sum, value) => sum + value, 0);
     const mean = Array(d).fill(0);
+    let responseMean = 0;
     for (let i = 0; i < X.length; i++) {
       for (let k = 0; k < d; k++) mean[k] += weights[i] * X[i][k] / Math.max(mass, 1e-12);
+      responseMean += weights[i] * y[i] / Math.max(mass, 1e-12);
     }
+    localMeans[j] = mean;
+    localResponseMeans[j] = responseMean;
     for (let i = 0; i < X.length; i++) {
       const weight = weights[i];
       if (weight <= 0) continue;
@@ -309,7 +318,23 @@ function oneScale(
     aoCosines.push(cosine(beta, truth));
     if (1 - cosine(beta, anchor) < 1e-7) break;
   }
-  return { beta, aoCosines };
+  const fitEll = Array(J).fill(0);
+  for (let j = 0; j < J; j++) {
+    const projection = U[j].map((row) => dot(row, beta));
+    fitEll[j] = dot(Z[j], projection) / (dot(projection, projection) + 1e-8);
+  }
+  let dataFit = 0;
+  for (let j = 0; j < J; j++) {
+    for (let i = 0; i < X.length; i++) {
+      const weight = localWeights[j][i];
+      if (weight <= 0) continue;
+      let centeredProjection = 0;
+      for (let k = 0; k < d; k++) centeredProjection += (X[i][k] - localMeans[j][k]) * beta[k];
+      const residual = y[i] - localResponseMeans[j] - fitEll[j] * centeredProjection;
+      dataFit += residual * residual * weight;
+    }
+  }
+  return { beta, aoCosines, dataFit };
 }
 
 function scatter(X: number[][], y: number[], beta: number[]) {
@@ -374,6 +399,7 @@ export function runExperiment(input: ExperimentParams): ExperimentResult {
     path.push({
       h,
       rho,
+      dataFit: updated.dataFit,
       cosine: cosine(beta, truth),
       beta: [...beta],
       aoCosines: updated.aoCosines,
@@ -383,7 +409,7 @@ export function runExperiment(input: ExperimentParams): ExperimentResult {
     if (nextH < hMin) break;
     const nextRho = chooseRho(X, centers, beta, nextH, p.nLoc);
     if (nextRho === null) {
-      feasibilityWarning = "The next scale has no ρ ∈ [0,1] satisfying (1.7), so the procedure stops at the last feasible tensor.";
+      feasibilityWarning = "The next scale has no ρ ∈ [0,1] satisfying (1.8), so the procedure stops at the last feasible tensor.";
       break;
     }
     h = nextH;
